@@ -2,7 +2,6 @@
 #include <map>
 #include <vector>
 #include <string.h>
-
 #include <pugixml.hpp>
 #include <boost/program_options.hpp>
 
@@ -29,7 +28,6 @@ int main(int ac, char **av) {
 		"track-name", po::value(&trackName)->default_value("track extracted from .osm"), "track name in .gpx file");
 	po::variables_map vm;
 	po::store(po::parse_command_line(ac, av, desc), vm);
-
 	po::notify(vm);
 
 	if (vm.count(argHelp) || osmFileName.empty()) {
@@ -37,9 +35,8 @@ int main(int ac, char **av) {
 		return 0;
 	}
 
-    pugi::xml_document doc;
-    pugi::xml_parse_result result = doc.load_file(osmFileName.c_str());
-    if (!result) {
+    pugi::xml_document osmDoc;
+    if (!osmDoc.load_file(osmFileName.c_str())) {
     	cerr << "Could not open: " << osmFileName << endl;
         return -1;
     }
@@ -47,32 +44,29 @@ int main(int ac, char **av) {
     cout << "Loaded: " << osmFileName << endl;
 
     map<int, Coord> nodes;
-    for (const auto &item: doc.child("osm")) {
-    	const auto name = item.name();
-    	if (0 == strcmp(name, "node")) {
+    for (const auto &item: osmDoc.child("osm")) {
+    	if (0 == strcmp(item.name(), "node")) {
     		nodes[item.attribute("id").as_int()] = {item.attribute("lon").as_double(), item.attribute("lat").as_double()};
     	}
     }
 
     vector<vector<Coord>> segs;
-    for (const auto &item: doc.child("osm")) {
-    	const auto name = item.name();
-    	if (0 == strcmp(name, "way")) {
+    for (const auto &item: osmDoc.child("osm")) {
+    	if (0 == strcmp(item.name(), "way")) {
     		vector<Coord> points;
     		bool found = false;
-    		for (const auto &i: item) {
-    			if (const auto id = i.attribute("ref").as_int())
+    		for (const auto &point: item) {
+    			if (const auto id = point.attribute("ref").as_int())
     			{
     				const auto nodesIt = nodes.find(id);
     				if (nodesIt == nodes.end()) {
     					cerr << "Bad way point with id " << id << endl;
     					return -1;
     				}
-
     				points.push_back(nodesIt->second);
     			} else {
-					const auto k = i.attribute("k").as_string();
-					const auto v = i.attribute("v").as_string();
+					const auto k = point.attribute("k").as_string();
+					const auto v = point.attribute("v").as_string();
 					if (
 						0 == strcmp(k, "name") &&
 						mismatch(prefix.begin(), prefix.end(), v, v + strlen(v)).first == prefix.end()
